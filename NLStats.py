@@ -24,7 +24,7 @@ infodict = {'trf': "Trust Region Reflective Algorithm", 'lm': "Levenberg-Marquar
 
 
 class Param(dict):
-    """An ordered dictionary class that inherets from the standard dict for storing lists of parameters.
+    """An ordered dictionary class that inherits from the standard dict for storing lists of parameters.
     Items are initialized by a passing tuples of the form (name, value)."""
     def __init__(self, *args):
         super(Param, self).__init__(args)
