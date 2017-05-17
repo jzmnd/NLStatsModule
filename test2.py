@@ -17,9 +17,11 @@ model1 = NLS(residualsfunc, param0, sold_data, cord_data, bounds=None, loss='lin
 
 model1.fit()
 
-model1.summary()
+model1.tout()
 
-print model1.aic()
+print "AIC and BIC:"
+print model1.ic(typ='a')
+print model1.ic(typ='b')
 
 x_test = np.linspace(60, 180, 60)
 y_lsq = model1.parmEsts[0] + x_test * model1.parmEsts[1]
