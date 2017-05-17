@@ -15,9 +15,48 @@ import scipy.stats as spst
 from scipy import linalg
 from scipy.optimize import least_squares
 
-infodict = {'trf':"Trust Region Reflective Algorithm", 'lm':"Levenberg-Marquardt Algorithm",
-            'linear':"Linear Loss Function", 'soft_l1':"Soft L1 Loss Function", 'huber':"Huber Loss Function",
-            'cauchy':"Cauchy Loss Function", 'arctan':"Arctangent Loss Function"}
+__author__ = "Jeremy Smith"
+__version__ = "1.1"
+
+infodict = {'trf': "Trust Region Reflective Algorithm", 'lm': "Levenberg-Marquardt Algorithm",
+            'linear': "Linear Loss Function", 'soft_l1': "Soft L1 Loss Function", 'huber': "Huber Loss Function",
+            'cauchy': "Cauchy Loss Function", 'arctan': "Arctangent Loss Function"}
+
+
+class Param(dict):
+    """An ordered dictionary class that inherets from the standard dict for storing lists of parameters.
+    Items are initialized by a passing tuples of the form (name, value)."""
+    def __init__(self, *args):
+        super(Param, self).__init__(args)
+        self.plist = [a[0] for a in args]
+
+    def __setitem__(self, key, value):
+        self.plist.append(key)
+        super(Param, self).__setitem__(key, value)
+
+    def __repr__(self):
+        return "(Parameters: " + ", ".join("('{}', {})".format(*t) for t in zip(self.plist, self.values())) + ")"
+
+    def __iter__(self):
+        return iter(self.plist)
+
+    def keys(self):
+        return self.plist
+
+    def values(self):
+        return [self[k] for k in self.plist]
+
+    def append(self, key, value):
+        self.__setitem__(key, value)
+
+    def get(self, itn):
+        if itn in range(len(self.plist)):
+            k = self.plist[itn]
+            return (k, self[k])
+        else:
+            msg = "Parameter index out of range"
+            raise IndexError(msg)
+
 
 class NLS:
     """This provides a wrapper for scipy.optimize.least_squares to get the relevant output for nonlinear least squares.
@@ -30,12 +69,9 @@ class NLS:
             msg = "The number of observations does not match the number of rows for the predictors"
             raise ValueError(msg)
 
-        # Check parameter estimates
-        if type(p0) != dict:
-            msg = "Initial parameter estimates (p0) must be a dictionry of form p0={'a':1, 'b':2, etc}"
-            raise ValueError(msg)
-        if 'order' not in p0.keys():
-            msg = "Initial parameter estimates (p0) must contain an 'order' list"
+        # Check parameter estimates is of class Param
+        if p0.__class__.__name__ != 'Param':
+            msg = "Initial parameter estimates (p0) must be a Parameter list"
             raise ValueError(msg)
 
         # Check method and loss
@@ -47,12 +83,12 @@ class NLS:
             raise ValueError(msg)
 
         self.func = func
-        self.parmNames = p0['order']
-        self.inits = np.array([p0[name] for name in self.parmNames])
+        self.parmNames = p0.keys()
+        self.parmInits = np.array(p0.values())
         self.xdata = np.array(xdata)
         self.ydata = np.array(ydata)
         self.nobs = len(ydata)
-        self.nparm = len(self.inits)
+        self.nparm = len(self.parmNames)
         self.bounds = bounds
         self.method = method
         self.loss = loss
@@ -68,11 +104,15 @@ class NLS:
                 self.parmNames[i] = self.parmNames[i][0:8]
 
     def fit(self):
-        # Run the model     
-        if (self.bounds == None) or (self.method == 'lm'):
-            self.mod1 = least_squares(self.func, self.inits, method=self.method, loss=self.loss, args=(self.xdata, self.ydata))
+        # Run the model
+        if (self.bounds is None) or (self.method is 'lm'):
+            self.mod1 = least_squares(self.func, self.parmInits,
+                                      method=self.method, loss=self.loss,
+                                      args=(self.xdata, self.ydata))
         else:
-            self.mod1 = least_squares(self.func, self.inits, method=self.method, bounds=self.bounds, loss=self.loss, args=(self.xdata, self.ydata))
+            self.mod1 = least_squares(self.func, self.parmInits,
+                                      method=self.method, bounds=self.bounds, loss=self.loss,
+                                      args=(self.xdata, self.ydata))
 
         if self.mod1.success:
             self.fitted = True
@@ -86,7 +126,7 @@ class NLS:
         self.fun = self.mod1.fun
 
         # Get the fitted parameter estimates
-        self.parmEsts = np.round(self.mod1.x, 6)
+        self.parmEsts = Param(*zip(self.parmNames, self.mod1.x))
 
         # Calculate the Variances
         self.SS_err = np.sum(self.fun**2)
@@ -107,25 +147,25 @@ class NLS:
         # Get the covariance matrix by inverting Jacobian
         u, s, vh = linalg.svd(self.jac, full_matrices=False)
         self.cov = self.MSE_err * np.dot(vh.T / s**2, vh)
- 
+
         # Get parameter standard errors
         self.parmSE = np.sqrt(np.diag(self.cov))
 
         # Calculate the t-values and their p-values for parameters
-        self.tvals = self.parmEsts / self.parmSE
+        self.tvals = self.mod1.x / self.parmSE
         self.pvals = 2 * (1 - spst.t.cdf(np.abs(self.tvals), self.df_err))
 
         # Calculate F-value and its p-value
         self.fvalue = self.MSE_par / self.MSE_err
         self.pvalue = (1 - spst.f.cdf(self.fvalue, self.df_par, self.df_err))
         return
- 
+
     # Get AIC or BIC. Add 1 to the number of parameters to account for estimation of standard error
     def ic(self, typ='a'):
         # Get biased variance (MLE) and calculate log-likelihood
         n = self.nparm + 1
         s2b = self.SS_err / self.nobs
-        self.logLik = -0.5 * self.nobs * np.log(2*np.pi) - 0.5 * self.nobs * np.log(s2b) - 1/(2*s2b) * self.SS_err
+        self.logLik = -0.5 * self.nobs * np.log(2 * np.pi) - 0.5 * self.nobs * np.log(s2b) - 1 / (2 * s2b) * self.SS_err
         if typ == 'a':
             return 2 * n - 2 * self.logLik
         elif typ == 'b':
@@ -143,7 +183,7 @@ class NLS:
         with open(outfile, 'w') as f:
             self._summary_output(f.write)
         return
- 
+
     def _summary_output(self, pf):
         if self.fitted:
             pf("\n===============================================================\n")
@@ -154,13 +194,15 @@ class NLS:
             pf("Parameters:\n")
             pf("  Factor       Estimate       Std Error      t-value    P(>|t|)\n")
             for i, name in enumerate(self.parmNames):
-                    pf("  {:10s}  {: .6e}  {: .6e}  {: 8.5f}  {:8.5f}\n".format(name, self.parmEsts[i], self.parmSE[i], self.tvals[i], self.pvals[i]))
+                pf("  {:10s}  {: .6e}  {: .6e}  {: 8.5f}  {:8.5f}\n".format(name, self.parmEsts[name], self.parmSE[i],
+                                                                            self.tvals[i], self.pvals[i]))
             pf("\nResidual Standard Error: {:8.5f}\n".format(self.RMSE_err))
             pf("                    AIC: {:8.5f}\n".format(self.ic(typ='a')))
             pf("                    BIC: {:8.5f}\n\n".format(self.ic(typ='b')))
             pf("Analysis of Variance:\n")
             pf("  Source     DF   SS        MS         F-value   P(>F)\n")
-            pf("  Model     {:3d}  {:8.5f}  {:8.5f}  {:9.5f}  {:8.5f}\n".format(self.df_par, self.SS_par, self.MSE_par, self.fvalue, self.pvalue))
+            pf("  Model     {:3d}  {:8.5f}  {:8.5f}  {:9.5f}  {:8.5f}\n".format(self.df_par, self.SS_par, self.MSE_par,
+                                                                                self.fvalue, self.pvalue))
             pf("  Error     {:3d}  {:8.5f}  {:8.5f}\n".format(self.df_err, self.SS_err, self.MSE_err))
             pf("  Total     {:3d}  {:8.5f}\n".format(self.df_tot, self.SS_tot))
             pf("===============================================================\n\n")
