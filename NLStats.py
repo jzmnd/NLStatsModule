@@ -147,7 +147,7 @@ class NLS:
     def _summary_output(self, pf):
         if self.fitted:
             pf("\n===============================================================\n")
-            pf("Non-linear least squares regressionn\n")
+            pf("Non-linear least squares regression\n")
             pf("Model: '{:s}'\n".format(self.func.func_name))
             pf("{:s}\n".format(infodict[self.method]))
             pf("Info: {:s}\n".format(self.mod1.message))
@@ -155,7 +155,9 @@ class NLS:
             pf("  Factor       Estimate       Std Error      t-value    P(>|t|)\n")
             for i, name in enumerate(self.parmNames):
                     pf("  {:10s}  {: .6e}  {: .6e}  {: 8.5f}  {:8.5f}\n".format(name, self.parmEsts[i], self.parmSE[i], self.tvals[i], self.pvals[i]))
-            pf("\nResidual Standard Error: {:8.5f}\n\n".format(self.RMSE_err))
+            pf("\nResidual Standard Error: {:8.5f}\n".format(self.RMSE_err))
+            pf("                    AIC: {:8.5f}\n".format(self.ic(typ='a')))
+            pf("                    BIC: {:8.5f}\n\n".format(self.ic(typ='b')))
             pf("Analysis of Variance:\n")
             pf("  Source     DF   SS        MS         F-value   P(>F)\n")
             pf("  Model     {:3d}  {:8.5f}  {:8.5f}  {:9.5f}  {:8.5f}\n".format(self.df_par, self.SS_par, self.MSE_par, self.fvalue, self.pvalue))
@@ -164,7 +166,7 @@ class NLS:
             pf("===============================================================\n\n")
         else:
             pf("\n===============================================================\n")
-            pf("Non-linear least squares regressionn\n")
+            pf("Non-linear least squares regression\n")
             pf("Model: '{:s}'\n".format(self.func.func_name))
             pf("RUN FIT FOR OUTPUT\n")
             pf("===============================================================\n\n")
